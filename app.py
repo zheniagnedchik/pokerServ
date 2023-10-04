@@ -139,157 +139,7 @@ def assign_positions(game_info, positions_by_count):
     return game_info
 
 
-def calculate_raise_frequencies(hands, positions_group, max_bb=40, min_bb=0, min_bet_bb=0, max_bet_bb=5, min_seat=7, max_seat=9):
-    frequencies = {}
-
-    for position, desired_positions in positions_group.items():
-        raise_opportunity_count = 0
-        raise_count = 0
-
-        for hand in hands:
-            players = hand.get('players')
-            if not players or len(players) < min_seat or len(players) > max_seat:
-                continue  # Skip hands that don't have player information or don't have 7 to 9 players
-
-            actions_preflop = hand.get('actions', {}).get('preflop', [])
-            big_blind_value = 0
-            for action in actions_preflop:
-                if 'posts big blind' in action:
-                    big_blind_value = int(action.split(
-                        '[')[-1].rstrip(']').replace(',', ''))
-                    break
-
-            if big_blind_value == 0:
-                continue  # Skip hands that don't have big blind information
-
-            for desired_position in desired_positions:
-                position_player = None
-                player_chips = 0
-                for player_info in players:
-                    if player_info.get('position') == desired_position:
-                        position_player = player_info['name']
-                        player_chips = player_info.get('chips', 0)
-                        break
-
-                stack_size_in_bb = player_chips / big_blind_value
-                if position_player is None or stack_size_in_bb > max_bb or stack_size_in_bb < min_bb:
-                    continue  # Skip if player at the desired position is not found or stack size is out of bounds
-
-                player_action_found = False
-                player_action = None
-                player_all_in = False
-                for action in actions_preflop:
-                    if f'Dealt to {position_player}' in action:
-                        player_action_found = True
-                        continue
-                    if player_action_found:
-                        if position_player in action:
-                            player_action = action
-                            if 'all-in' in action:
-                                player_all_in = True
-                            break
-
-                if player_action and not player_all_in:
-                    actions_before_player = actions_preflop[:actions_preflop.index(
-                        player_action)]
-                    if all(not 'calls' in action and not 'raises' in action and not 'all-in' in action for action in actions_before_player):
-                        raise_opportunity_count += 1
-
-                        if 'raises' in player_action:
-                            bet_size = int(player_action.split(
-                                '[')[-1].rstrip(']').replace(',', ''))
-                            bet_size_in_bb = bet_size / big_blind_value
-                            if min_bet_bb <= bet_size_in_bb <= max_bet_bb:
-                                raise_count += 1
-
-        raise_frequency = 0
-        if raise_opportunity_count > 0:
-            raise_frequency = (raise_count / raise_opportunity_count) * 100
-
-        frequencies[position] = raise_frequency
-
-    return json.dumps(frequencies)
-
-
-def calculate_raise_frequencies_all_inn(hands, positions_group, max_bb=40, min_bb=0, min_bet_bb=0, max_bet_bb=5, min_seat=7, max_seat=9):
-    frequencies = {}
-
-    for position, desired_positions in positions_group.items():
-        raise_opportunity_count = 0
-        allin_raise_count = 0
-
-        for hand in hands:
-            players = hand.get('players')
-            if not players or len(players) < min_seat or len(players) > max_seat:
-                continue  # Skip hands that don't have player information or don't have 7 to 9 players
-
-            actions_preflop = hand.get('actions', {}).get('preflop', [])
-            big_blind_value = 0
-            for action in actions_preflop:
-                if 'posts big blind' in action:
-                    big_blind_value = int(action.split(
-                        '[')[-1].rstrip(']').replace(',', ''))
-                    break
-
-            if big_blind_value == 0:
-                continue  # Skip hands that don't have big blind information
-
-            for desired_position in desired_positions:
-                position_player = None
-                player_chips = 0
-                player_ante = 0
-                for player_info in players:
-                    if player_info.get('position') == desired_position:
-                        position_player = player_info['name']
-                        player_chips = player_info.get('chips', 0)
-
-                        # Extracting ante from player's actions
-                        for action in player_info.get('actions', {}).get('preflop', []):
-                            if 'posts ante' in action:
-                                player_ante = int(action.split(
-                                    '[')[-1].rstrip(']').replace(',', ''))
-                                break
-                        break
-
-                stack_size_in_bb = (
-                    player_chips - player_ante) / big_blind_value
-                if position_player is None or stack_size_in_bb > max_bb or stack_size_in_bb < min_bb:
-                    continue  # Skip if player at the desired position is not found or stack size is out of bounds
-
-                player_action_found = False
-                player_action = None
-                for action in actions_preflop:
-                    if f'Dealt to {position_player}' in action:
-                        player_action_found = True
-                        continue
-                    if player_action_found:
-                        if position_player in action:
-                            player_action = action
-                            break
-
-                if player_action:
-                    actions_before_player = actions_preflop[:actions_preflop.index(
-                        player_action)]
-                    if all(not 'calls' in action and not 'raises' in action for action in actions_before_player):
-                        raise_opportunity_count += 1
-
-                        if 'raises' in player_action:
-                            bet_size = int(player_action.split(
-                                '[')[-1].rstrip(']').replace(',', ''))
-                            bet_size_in_bb = bet_size / big_blind_value
-                            if min_bet_bb <= bet_size_in_bb <= max_bet_bb and bet_size >= (player_chips - player_ante):
-                                allin_raise_count += 1
-
-        allin_raise_frequency = 0
-        if raise_opportunity_count > 0:
-            allin_raise_frequency = (
-                allin_raise_count / raise_opportunity_count) * 100
-
-        frequencies[position] = allin_raise_frequency
-
-    return json.dumps(frequencies)
-
-# def calculate_raise_frequencies(hands, positions_group, player_name, max_bb=40, min_bb=0, min_bet_bb=0, max_bet_bb=5, min_seat=7, max_seat=9):
+# def calculate_raise_frequencies(hands, positions_group, max_bb=40, min_bb=0, min_bet_bb=0, max_bet_bb=5, min_seat=7, max_seat=9):
 #     frequencies = {}
 
 #     for position, desired_positions in positions_group.items():
@@ -316,7 +166,7 @@ def calculate_raise_frequencies_all_inn(hands, positions_group, max_bb=40, min_b
 #                 position_player = None
 #                 player_chips = 0
 #                 for player_info in players:
-#                     if player_info.get('position') == desired_position and player_info.get('name') == player_name:
+#                     if player_info.get('position') == desired_position:
 #                         position_player = player_info['name']
 #                         player_chips = player_info.get('chips', 0)
 #                         break
@@ -361,6 +211,235 @@ def calculate_raise_frequencies_all_inn(hands, positions_group, max_bb=40, min_b
 #     return json.dumps(frequencies)
 
 
+# def calculate_raise_frequencies_all_inn(hands, positions_group, max_bb=40, min_bb=0, min_bet_bb=0, max_bet_bb=5, min_seat=7, max_seat=9):
+#     frequencies = {}
+
+#     for position, desired_positions in positions_group.items():
+#         raise_opportunity_count = 0
+#         allin_raise_count = 0
+
+#         for hand in hands:
+#             players = hand.get('players')
+#             if not players or len(players) < min_seat or len(players) > max_seat:
+#                 continue  # Skip hands that don't have player information or don't have 7 to 9 players
+
+#             actions_preflop = hand.get('actions', {}).get('preflop', [])
+#             big_blind_value = 0
+#             for action in actions_preflop:
+#                 if 'posts big blind' in action:
+#                     big_blind_value = int(action.split(
+#                         '[')[-1].rstrip(']').replace(',', ''))
+#                     break
+
+#             if big_blind_value == 0:
+#                 continue  # Skip hands that don't have big blind information
+
+#             for desired_position in desired_positions:
+#                 position_player = None
+#                 player_chips = 0
+#                 player_ante = 0
+#                 for player_info in players:
+#                     if player_info.get('position') == desired_position:
+#                         position_player = player_info['name']
+#                         player_chips = player_info.get('chips', 0)
+
+#                         # Extracting ante from player's actions
+#                         for action in player_info.get('actions', {}).get('preflop', []):
+#                             if 'posts ante' in action:
+#                                 player_ante = int(action.split(
+#                                     '[')[-1].rstrip(']').replace(',', ''))
+#                                 break
+#                         break
+
+#                 stack_size_in_bb = (
+#                     player_chips - player_ante) / big_blind_value
+#                 if position_player is None or stack_size_in_bb > max_bb or stack_size_in_bb < min_bb:
+#                     continue  # Skip if player at the desired position is not found or stack size is out of bounds
+
+#                 player_action_found = False
+#                 player_action = None
+#                 for action in actions_preflop:
+#                     if f'Dealt to {position_player}' in action:
+#                         player_action_found = True
+#                         continue
+#                     if player_action_found:
+#                         if position_player in action:
+#                             player_action = action
+#                             break
+
+#                 if player_action:
+#                     actions_before_player = actions_preflop[:actions_preflop.index(
+#                         player_action)]
+#                     if all(not 'calls' in action and not 'raises' in action for action in actions_before_player):
+#                         raise_opportunity_count += 1
+
+#                         if 'raises' in player_action:
+#                             bet_size = int(player_action.split(
+#                                 '[')[-1].rstrip(']').replace(',', ''))
+#                             bet_size_in_bb = bet_size / big_blind_value
+#                             if min_bet_bb <= bet_size_in_bb <= max_bet_bb and bet_size >= (player_chips - player_ante):
+#                                 allin_raise_count += 1
+
+#         allin_raise_frequency = 0
+#         if raise_opportunity_count > 0:
+#             allin_raise_frequency = (
+#                 allin_raise_count / raise_opportunity_count) * 100
+
+#         frequencies[position] = allin_raise_frequency
+
+#     return json.dumps(frequencies)
+
+
+def calculate_raise_frequencies_for_player(hands, positions_group, player_name, max_bb=40, min_bb=0, min_bet_bb=0, max_bet_bb=5, min_seat=7, max_seat=9):
+    frequencies = {}
+
+    for position, desired_positions in positions_group.items():
+        raise_opportunity_count = 0
+        allin_raise_count = 0
+
+        for hand in hands:
+            players = hand.get('players')
+            if not players or len(players) < min_seat or len(players) > max_seat:
+                continue  # Skip hands that don't have player information or don't have 7 to 9 players
+
+            actions_preflop = hand.get('actions', {}).get('preflop', [])
+            big_blind_value = 0
+            for action in actions_preflop:
+                if 'posts big blind' in action:
+                    big_blind_value = int(action.split(
+                        '[')[-1].rstrip(']').replace(',', ''))
+                    break
+
+            if big_blind_value == 0:
+                continue  # Skip hands that don't have big blind information
+
+            player_position = None
+            player_chips = 0
+            player_ante = 0
+            for player_info in players:
+                if player_info.get('name') == player_name:
+                    player_position = player_info.get('position')
+                    player_chips = player_info.get('chips', 0)
+                    for action in player_info.get('actions', {}).get('preflop', []):
+                        if 'posts ante' in action:
+                            player_ante = int(action.split(
+                                '[')[-1].rstrip(']').replace(',', ''))
+                            break
+                    break
+
+            if player_position not in desired_positions:
+                continue
+
+            stack_size_in_bb = (player_chips - player_ante) / big_blind_value
+            if stack_size_in_bb > max_bb or stack_size_in_bb < min_bb:
+                continue  # Skip if stack size is out of bounds
+
+            player_action_found = False
+            player_action = None
+            for action in actions_preflop:
+                if f'Dealt to {player_name}' in action:
+                    player_action_found = True
+                    continue
+                if player_action_found:
+                    if player_name in action:
+                        player_action = action
+                        break
+
+            if player_action:
+                actions_before_player = actions_preflop[:actions_preflop.index(
+                    player_action)]
+                if all(not 'calls' in action and not 'raises' in action for action in actions_before_player):
+                    raise_opportunity_count += 1
+
+                if 'raises' in player_action:
+                    bet_size = int(player_action.split(
+                        '[')[-1].rstrip(']').replace(',', ''))
+                    bet_size_in_bb = bet_size / big_blind_value
+                    if min_bet_bb <= bet_size_in_bb <= max_bet_bb and bet_size >= (player_chips - player_ante):
+                        allin_raise_count += 1
+
+        allin_raise_frequency = 0
+        if raise_opportunity_count > 0:
+            allin_raise_frequency = (
+                allin_raise_count / raise_opportunity_count) * 100
+
+        frequencies[position] = allin_raise_frequency
+
+    return json.dumps(frequencies)
+
+
+def calculate_raise_frequencies(hands, positions_group, player_name, max_bb=40, min_bb=0, min_bet_bb=0, max_bet_bb=5, min_seat=7, max_seat=9):
+    frequencies = {}
+
+    for position, desired_positions in positions_group.items():
+        raise_opportunity_count = 0
+        raise_count = 0
+
+        for hand in hands:
+            players = hand.get('players')
+            if not players or len(players) < min_seat or len(players) > max_seat:
+                continue  # Skip hands that don't have player information or don't have 7 to 9 players
+
+            actions_preflop = hand.get('actions', {}).get('preflop', [])
+            big_blind_value = 0
+            for action in actions_preflop:
+                if 'posts big blind' in action:
+                    big_blind_value = int(action.split(
+                        '[')[-1].rstrip(']').replace(',', ''))
+                    break
+
+            if big_blind_value == 0:
+                continue  # Skip hands that don't have big blind information
+
+            for desired_position in desired_positions:
+                position_player = None
+                player_chips = 0
+                for player_info in players:
+                    if player_info.get('position') == desired_position and player_info.get('name') == player_name:
+                        position_player = player_info['name']
+                        player_chips = player_info.get('chips', 0)
+                        break
+
+                stack_size_in_bb = player_chips / big_blind_value
+                if position_player is None or stack_size_in_bb > max_bb or stack_size_in_bb < min_bb:
+                    continue  # Skip if player at the desired position is not found or stack size is out of bounds
+
+                player_action_found = False
+                player_action = None
+                player_all_in = False
+                for action in actions_preflop:
+                    if f'Dealt to {position_player}' in action:
+                        player_action_found = True
+                        continue
+                    if player_action_found:
+                        if position_player in action:
+                            player_action = action
+                            if 'all-in' in action:
+                                player_all_in = True
+                            break
+
+                if player_action and not player_all_in:
+                    actions_before_player = actions_preflop[:actions_preflop.index(
+                        player_action)]
+                    if all(not 'calls' in action and not 'raises' in action and not 'all-in' in action for action in actions_before_player):
+                        raise_opportunity_count += 1
+
+                        if 'raises' in player_action:
+                            bet_size = int(player_action.split(
+                                '[')[-1].rstrip(']').replace(',', ''))
+                            bet_size_in_bb = bet_size / big_blind_value
+                            if min_bet_bb <= bet_size_in_bb <= max_bet_bb:
+                                raise_count += 1
+
+        raise_frequency = 0
+        if raise_opportunity_count > 0:
+            raise_frequency = (raise_count / raise_opportunity_count) * 100
+
+        frequencies[position] = raise_frequency
+
+    return json.dumps(frequencies)
+
+
 positions_by_count = {
     2: ["BTN", "BB"],
     3: ["BTN", "SB", "BB"],
@@ -400,6 +479,7 @@ def upload_file():
         'BB': ('BB')
     }
     params = request.form.get('params')
+    player_name = request.form.get('player_name')
     if not params:
         return jsonify(error='No parameters provided'), 400
     try:
@@ -418,11 +498,11 @@ def upload_file():
         title = param.get('title')
 
         # Проверка, что все параметры предоставлены
-        if any(param is None for param in [max_bb, min_bb, min_bet_bb, max_bet_bb, title, min_seat, max_seat, ]):
+        if any(param is None for param in [max_bb, min_bb, min_bet_bb, max_bet_bb, title, min_seat, max_seat, player_name]):
             return jsonify(error='Missing one or more parameters'), 400
 
         frequencies_json = calculate_raise_frequencies(
-            parsed_games, positions_group,  max_bb, min_bb, min_bet_bb, max_bet_bb, min_seat, max_seat,
+            parsed_games, positions_group, player_name, max_bb, min_bb, min_bet_bb, max_bet_bb, min_seat, max_seat,
         )
 
         result = json.loads(frequencies_json)
@@ -463,6 +543,7 @@ def upload_files():
         'BB': ('BB')
     }
     params = request.form.get('params')
+    player_name = request.form.get('player_name')
     if not params:
         return jsonify(error='No parameters provided'), 400
     try:
@@ -484,8 +565,8 @@ def upload_files():
         if any(param is None for param in [max_bb, min_bb, min_bet_bb, max_bet_bb, title, min_seat, max_seat, ]):
             return jsonify(error='Missing one or more parameters'), 400
 
-        frequencies_json = calculate_raise_frequencies_all_inn(
-            parsed_games, positions_group,  max_bb, min_bb, min_bet_bb, max_bet_bb, min_seat, max_seat,
+        frequencies_json = calculate_raise_frequencies_for_player(
+            parsed_games, positions_group, player_name,  max_bb, min_bb, min_bet_bb, max_bet_bb, min_seat, max_seat,
         )
 
         result = json.loads(frequencies_json)
